@@ -7,6 +7,11 @@ import sys
 from pathlib import Path
 from typing import Any, ClassVar
 
+# 必须在其他导入之前将插件目录加入 sys.path，否则 algos 包无法被发现
+_PLUGIN_DIR = str(Path(__file__).resolve().parent)
+if _PLUGIN_DIR not in sys.path:
+    sys.path.insert(0, _PLUGIN_DIR)
+
 from maibot_sdk import MaiBotPlugin, Tool, PluginConfigBase, Field
 from maibot_sdk.types import ToolParameterInfo, ToolParamType
 
@@ -14,12 +19,8 @@ from algos.base import MaiMAlgo
 
 # ── 常量 ─────────────────────────────────────────────────
 
-PLUGIN_DIR = Path(__file__).resolve().parent
+PLUGIN_DIR = Path(_PLUGIN_DIR)
 ALGOS_DIR = PLUGIN_DIR / "algos"
-
-# 确保插件目录在 sys.path 中，以便 .maialgo 文件能 from algos.base import MaiMAlgo
-if str(PLUGIN_DIR) not in sys.path:
-    sys.path.insert(0, str(PLUGIN_DIR))
 
 
 # ── 算法发现引擎 ─────────────────────────────────────────
