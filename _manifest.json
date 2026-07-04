@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+  "id": "com.bluelighting.decrypt-plugin",
+  "version": "1.0.0",
+  "name": "DecryptPlugin",
+  "description": "为 AI 提供加解密工具调用能力，支持可扩展算法体系",
+  "author": {
+    "name": "BlueLighting"
+  },
+  "license": "MIT",
+  "urls": {
+    "repository": ""
+  },
+  "host_application": {
+    "min_version": "1.0.0"
+  },
+  "sdk": {
+    "min_version": "2.0.0",
+    "max_version": "2.99.99"
+  },
+  "capabilities": [],
+  "i18n": {
+    "default_locale": "zh-CN"
+  }
+}

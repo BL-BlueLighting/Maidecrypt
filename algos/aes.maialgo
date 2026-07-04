@@ -1,0 +1,198 @@
+"""AES 对称加解密算法。
+
+支持多种模式、填充方式和密钥长度。
+需要密码，external_args 可指定 mode/padding/key_size。
+"""
+from __future__ import annotations
+
+import hashlib
+from typing import Any
+
+from algos.base import MaiMAlgo
+
+try:
+    from Cryptodome.Cipher import AES as CryptoAES
+    from Cryptodome.Util.Padding import pad, unpad
+
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
+
+
+# ── 可选项映射 ──────────────────────────────────────────
+
+MODES: dict[str, int] = {
+    "ECB": 1,  # AES.MODE_ECB
+    "CBC": 2,  # AES.MODE_CBC
+    "CFB": 3,  # AES.MODE_CFB
+    "OFB": 5,  # AES.MODE_OFB
+    "CTR": 6,  # AES.MODE_CTR
+    "GCM": 11,  # AES.MODE_GCM
+}
+
+PADDINGS: dict[str, str] = {
+    "PKCS7": "pkcs7",
+    "ZERO": "zero",
+    "NOPAD": "nopad",
+}
+
+KEY_SIZES: list[int] = [16, 24, 32]  # 128, 192, 256 bits
+
+
+def _derive_key(password: str, key_size: int) -> bytes:
+    """用 SHA-256 从密码派生密钥。"""
+    return hashlib.sha256(password.encode("utf-8")).digest()[:key_size]
+
+
+def _apply_padding(data: bytes, padding: str, block_size: int = 16) -> bytes:
+    pad_lower = padding.lower()
+    if pad_lower == "pkcs7":
+        return pad(data, block_size, style="pkcs7")
+    elif pad_lower == "zero":
+        pad_len = block_size - (len(data) % block_size or block_size)
+        return data + b"\x00" * pad_len
+    elif pad_lower == "nopad":
+        # 调用方需自行保证数据对齐
+        return data
+    return data
+
+
+def _remove_padding(data: bytes, padding: str, block_size: int = 16) -> bytes:
+    pad_lower = padding.lower()
+    if pad_lower == "pkcs7":
+        return unpad(data, block_size, style="pkcs7")
+    elif pad_lower == "zero":
+        return data.rstrip(b"\x00")
+    elif pad_lower == "nopad":
+        return data
+    return data
+
+
+class AESAlgo(MaiMAlgo):
+    name = "aes"
+    description = (
+        "AES 对称加解密算法。需要密码。\n"
+        "支持的参数组合：\n"
+        "  - 模式: ECB / CBC / CFB / OFB / CTR / GCM\n"
+        "  - 填充: PKCS7 / ZERO / NOPAD\n"
+        "  - 密钥长度: 128 / 192 / 256 bits"
+    )
+    type_category = "symmetric"
+
+    @property
+    def parameter_info(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "mode",
+                "type": "string",
+                "description": "AES 加密模式",
+                "default": "ECB",
+                "choices": list(MODES),
+            },
+            {
+                "name": "padding",
+                "type": "string",
+                "description": "填充方式",
+                "default": "PKCS7",
+                "choices": list(PADDINGS),
+            },
+            {
+                "name": "key_size",
+                "type": "int",
+                "description": "密钥长度（bit）",
+                "default": 128,
+                "choices": [128, 192, 256],
+            },
+        ]
+
+    def _build_cipher(
+        self, password: str, mode_name: str, key_size_bits: int
+    ) -> tuple:
+        """构建 AES cipher 对象。返回 (cipher, params_for_decrypt)。"""
+        key_size = key_size_bits // 8
+        if key_size not in KEY_SIZES:
+            key_size = 16
+
+        key = _derive_key(password, key_size)
+        mode = MODES.get(mode_name, 1)
+
+        if mode == 1:  # ECB
+            return CryptoAES.new(key, mode), {}
+        elif mode == 2:  # CBC
+            iv = CryptoAES.new(key, CryptoAES.MODE_CBC).iv
+            return CryptoAES.new(key, mode, iv=iv), {"iv": iv.hex()}
+        else:
+            cipher = CryptoAES.new(key, mode)
+            kwargs = {}
+            if hasattr(cipher, "iv"):
+                kwargs["iv"] = cipher.iv.hex()
+            if hasattr(cipher, "nonce"):
+                kwargs["nonce"] = cipher.nonce.hex()
+            return cipher, kwargs
+
+    def encrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        if not HAS_CRYPTO:
+            raise RuntimeError("缺少 pycryptodomex 库: pip install pycryptodomex")
+        if not password:
+            raise ValueError("AES 加密需要提供 password 参数。")
+
+        mode = str(kwargs.get("mode", "ECB")).upper()
+        padding = str(kwargs.get("padding", "PKCS7")).upper()
+        key_size = int(kwargs.get("key_size", 128))
+
+        cipher, meta = self._build_cipher(password, mode, key_size)
+        raw = data.encode("utf-8")
+        raw = _apply_padding(raw, padding)
+        ct = cipher.encrypt(raw)
+
+        result = {
+            "ciphertext": ct.hex(),
+            "algorithm": f"AES-{key_size}-{mode}",
+        }
+        result.update(meta)
+        # 便于 LLM 阅读，统一返回 JSON 文本
+        import json
+
+        return json.dumps(result, ensure_ascii=False)
+
+    def decrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        if not HAS_CRYPTO:
+            raise RuntimeError("缺少 pycryptodomex 库: pip install pycryptodomex")
+        if not password:
+            raise ValueError("AES 解密需要提供 password 参数。")
+
+        import json
+
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError:
+            payload = {"ciphertext": data}
+
+        ct = bytes.fromhex(payload["ciphertext"])
+        mode = str(kwargs.get("mode", payload.get("mode", "ECB"))).upper()
+        padding = str(kwargs.get("padding", payload.get("padding", "PKCS7"))).upper()
+        key_size = int(kwargs.get("key_size", payload.get("key_size", 128)))
+
+        key = _derive_key(password, key_size // 8 if key_size > 32 else key_size)
+        key_size = min(key_size, 256)
+        key_size_bytes = key_size // 8
+        key = key[:key_size_bytes]
+
+        mode_id = MODES.get(mode, 1)
+        crypto_kwargs: dict[str, Any] = {"key": key, "mode": mode_id}
+
+        iv_hex = kwargs.get("iv") or payload.get("iv")
+        if iv_hex:
+            crypto_kwargs["iv"] = bytes.fromhex(str(iv_hex))
+        nonce_hex = kwargs.get("nonce") or payload.get("nonce")
+        if nonce_hex:
+            crypto_kwargs["nonce"] = bytes.fromhex(str(nonce_hex))
+
+        cipher = CryptoAES.new(**crypto_kwargs)
+        plain = cipher.decrypt(ct)
+        plain = _remove_padding(plain, padding)
+
+        return plain.decode("utf-8")
+
+
+__algo__ = AESAlgo

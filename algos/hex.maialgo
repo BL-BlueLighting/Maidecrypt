@@ -1,0 +1,21 @@
+"""Hex 十六进制编解码算法。"""
+from __future__ import annotations
+
+from typing import Any
+
+from algos.base import MaiMAlgo
+
+
+class HexAlgo(MaiMAlgo):
+    name = "hex"
+    description = "Hex 十六进制编解码，将字节串编码为十六进制字符串。无需密码。"
+    type_category = "encoding"
+
+    def encrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        return data.encode("utf-8").hex()
+
+    def decrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        return bytes.fromhex(data).decode("utf-8")
+
+
+__algo__ = HexAlgo

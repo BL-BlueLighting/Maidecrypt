@@ -1,0 +1,22 @@
+"""Base64 编解码算法。"""
+from __future__ import annotations
+
+import base64
+from typing import Any
+
+from algos.base import MaiMAlgo
+
+
+class Base64Algo(MaiMAlgo):
+    name = "base64"
+    description = "Base64 编解码，将二进制数据编码为 ASCII 字符串。无需密码。"
+    type_category = "encoding"
+
+    def encrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        return base64.b64encode(data.encode("utf-8")).decode("ascii")
+
+    def decrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        return base64.b64decode(data).decode("utf-8")
+
+
+__algo__ = Base64Algo

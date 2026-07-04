@@ -1,0 +1,4 @@
+[algorithms]
+# 自动扫描 algos/*.maialgo 加载算法
+# 可通过此配置禁用特定算法
+disabled_types = []

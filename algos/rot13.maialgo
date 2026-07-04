@@ -1,0 +1,26 @@
+"""ROT13 简单替换密码。"""
+from __future__ import annotations
+
+import codecs
+from typing import Any
+
+from algos.base import MaiMAlgo
+
+
+class Rot13Algo(MaiMAlgo):
+    name = "rot13"
+    description = "ROT13 凯撒移位密码，对英文字母循环移动 13 位。无需密码。"
+    type_category = "simple"
+
+    @property
+    def needs_password(self) -> bool:
+        return False
+
+    def encrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        return codecs.encode(data, "rot_13")
+
+    def decrypt(self, data: str, password: str | None = None, **kwargs: Any) -> str:
+        return codecs.encode(data, "rot_13")
+
+
+__algo__ = Rot13Algo
