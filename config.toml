@@ -1,5 +1,6 @@
 [plugin]
-config_version = 1
+enabled = true
+config_version = "0.1.0"
 
 [algorithms]
 # 自动扫描 algos/*.maialgo 加载算法
